@@ -4,15 +4,6 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-	int i = 0;
-	char *addr;
-	 while (i < 50)
-   {
-      addr = (char*)malloc(50);
-      addr[0] = 42;
-      i++;
-   }
-   return 1;
 	size_t len = 1256;
 	char *test3[1256] = {0};
 	for (size_t i = 0; i < len; i++)
@@ -36,7 +27,7 @@ int main(int argc, char **argv)
 	// 	printf("%zu : %x %p\n",len -2, test3[len -2][0], &test3[len -2][0]);
 
 	// dump_malloc(true, true);
-
+	return 0;
 	for (size_t i = 0; i < len; i++)
 	{
 		free(test3[i]);

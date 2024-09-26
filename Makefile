@@ -1,6 +1,6 @@
 SRCFILES=malloc.c
 
-SRCSPRINT=$(wildcard srcs/ft_printf/*.c)
+SRCSPRINT=$(wildcard srcs/printf/*.c)
 # SRCSRAW=$(notdir srcs/ft_printf/ft_printf.c)
 SRCSRAW=$(notdir $(SRCSPRINT))
 SRCFILES+=$(SRCSRAW)
@@ -13,7 +13,7 @@ OBJ=$(addprefix $(OBJDIR)/, $(OBJSRC))
 
 NAME=libft_malloc.so
 FLAG=-Wall -Wextra
-vpath %.c srcs srcs/ft_printf
+vpath %.c srcs srcs/printf
 
 all: $(NAME)
 
@@ -24,16 +24,13 @@ $(NAME): $(OBJ)
 
 obj/%.o: %.c
 	mkdir -p obj
-	cc $(FLAG) -fPIC -I srcs/ft_printf -c $< -o  $@
+	cc $(FLAG) -fPIC -I srcs/printf -c $< -o  $@
 
-# OBJMAIN=obj/main.o obj/malloc.o
-
-# obj/%.o: srcs/%.c
-# 	mkdir -p obj
-# 	cc $(FLAG)  -I srcs/ft_printf -c $< -o $@
+OBJMAIN=obj/main.o
+OBJMAIN+=$(OBJ)
 
 main: $(OBJMAIN)
-	cc $(FLAG) -I srcs/ft_printf $(OBJMAIN) -o main libft/printf/libftprintf.a
+	cc $(FLAG) -I srcs/printf $(OBJMAIN) -o main
  
 clean:
 	rm -rf $(OBJDIR)

@@ -151,7 +151,6 @@ void *_malloc(size_t size)
 {
 	if (!g_heap.small_zone)
 		init_zone();
-
 	if (size < g_heap.option.tiny_size_chunk)
 		return alloc(size, g_heap.tiny_zone);
 	if (size < g_heap.option.small_size_chunk)
@@ -202,6 +201,7 @@ void free(void *addr)
 	}
 	if (!found)
 	{
+		return;
 		ft_printf("free () : invalid pointer");
 		abort();
 	}

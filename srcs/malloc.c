@@ -7,7 +7,6 @@ struct chunk
 	size_t size;
 	t_chunk *next;
 	t_chunk *prev;
-	bool free;
 };
 
 typedef struct option
@@ -45,6 +44,16 @@ struct option init_option()
 
 #define SKIP_HEADER_ZONE(zone) ((void *)zone + sizeof(t_zone))
 #define SKIP_HEADER_CHUNK(chunk) ((void *)chunk + sizeof(t_chunk))
+
+// Because our address is 16 bit aligned the size of each chunk is at least 16 bit
+// -> we can use the last bits to store data
+// -> rightmost bit will tell us if chunk is free or not -> no more bool :)
+#define CHUNK_FREE(x) ((x->size & -x->size) - 1)
+// We unset the last bit if set
+#define CHUNK_SIZE(x) (size_t)(x & ~1)
+
+#define SET_CHUNK_USED(x) x->size ^= 1
+#define SET_CHUNK_FREE(x) x->size &= ~1
 
 struct heap g_heap;
 
@@ -97,7 +106,7 @@ t_zone *create_new_zone(size_t size)
 
 t_chunk *create_chunk(t_chunk *chunk, t_chunk *prev, size_t size, t_zone *zone)
 {
-	while ((void *)SKIP_HEADER_CHUNK(chunk) + size > (void *)zone->end || (void *)chunk < (void *)zone)
+	while ((void *)SKIP_HEADER_CHUNK(chunk) + CHUNK_SIZE(size) > (void *)zone->end || (void *)chunk < (void *)zone)
 	{
 		if (zone->next)
 		{
@@ -114,13 +123,13 @@ t_chunk *create_chunk(t_chunk *chunk, t_chunk *prev, size_t size, t_zone *zone)
 		}
 	}
 	chunk->size = size;
-	chunk->free = false;
+	SET_CHUNK_USED(chunk);
 	chunk->prev = prev;
 
 	if (!chunk->next)
 	{
-		chunk->next = (void *)chunk + chunk->size + sizeof(t_chunk);
-		chunk->next->free = true;
+		chunk->next = (void *)chunk + CHUNK_SIZE(chunk->size) + sizeof(t_chunk);
+		SET_CHUNK_FREE(chunk->next);
 	}
 	return chunk;
 }
@@ -132,20 +141,19 @@ void *alloc(size_t size, t_zone *zone)
 	if (!start->next)
 	{
 		start = create_chunk(start, NULL, size, zone);
-	LOG("RETURN %p\n", SKIP_HEADER_CHUNK(start));
-
 		return SKIP_HEADER_CHUNK(start);
 	}
-	while (start->free == false)
+	while (CHUNK_FREE(start) == false)
 	{
 		if (!start->next)
 			break;
 		prev = start;
 		start = start->next;
 	}
+
 	start = create_chunk(start, prev, size, zone);
 	start->prev = prev;
-	LOG("RETURN %p\n", SKIP_HEADER_CHUNK(start));
+	LOG("RETURN %p  true address is %p\n", SKIP_HEADER_CHUNK(start), start);
 	return SKIP_HEADER_CHUNK(start);
 }
 
@@ -162,7 +170,6 @@ size_t align_mem(size_t size)
 void *_malloc(size_t size)
 {
 	size = align_mem(size);
-	LOG("REQUEST %d\n", size);
 	if (!g_heap.small_zone)
 		init_zone();
 	if (size < g_heap.option.tiny_size_chunk)
@@ -181,12 +188,20 @@ void *malloc(size_t size)
 void defragment(t_chunk *chunk)
 {
 	t_chunk *to_free = chunk;
-	to_free->free = true;
-	if (to_free->prev && to_free->prev->free == true)
+	SET_CHUNK_FREE(to_free);
+	// // Next chunk
+	// if (to_free->next && CHUNK_FREE(to_free->next->size))
+	// {
+
+	// 	to_free->size += CHUNK_SIZE(to_free->next->size) + sizeof(t_chunk);
+	// 	to_free->next = to_free->next->next;
+	// }
+
+	if (to_free->prev && CHUNK_FREE(to_free->prev))
 	{
 		to_free->prev->next = to_free->next;
 		to_free->next->prev = to_free->prev;
-		to_free->prev->size += to_free->size + sizeof(t_chunk);
+		to_free->prev->size += CHUNK_SIZE(to_free->size) + sizeof(t_chunk);
 	}
 }
 
@@ -203,11 +218,11 @@ void *search_ptr(void *addr, t_chunk *start)
 	return NULL;
 }
 
-void	*ft_memcpy(void *dest, const void *src, size_t n)
+void *ft_memcpy(void *dest, const void *src, size_t n)
 {
-	unsigned char		*d;
-	const unsigned char	*s;
-	size_t				i;
+	unsigned char *d;
+	const unsigned char *s;
+	size_t i;
 
 	if (!dest || !src)
 		return (dest);
@@ -217,12 +232,10 @@ void	*ft_memcpy(void *dest, const void *src, size_t n)
 	while (i < n)
 	{
 		d[i] = s[i];
-		i ++;
+		i++;
 	}
 	return (dest);
 }
-
-
 
 void *realloc(void *addr, size_t size)
 {
@@ -230,7 +243,7 @@ void *realloc(void *addr, size_t size)
 		return NULL;
 	LOG("REALLOC %p\n", addr);
 	void *new_ptr = malloc(size);
-	size_t old_size = ((t_chunk *) addr)->size;
+	size_t old_size = ((t_chunk *)addr)->size;
 
 	new_ptr = ft_memcpy(new_ptr, SKIP_HEADER_CHUNK(addr), old_size);
 
@@ -239,7 +252,6 @@ void *realloc(void *addr, size_t size)
 
 void free(void *addr)
 {
-	return;
 	t_chunk *start = SKIP_HEADER_ZONE(g_heap.tiny_zone);
 
 	t_chunk *found = search_ptr(addr, start);
@@ -254,7 +266,7 @@ void free(void *addr)
 		ft_printf("free () : invalid pointer");
 		abort();
 	}
-	found->free = true;
+	SET_CHUNK_FREE(found);
 	defragment(found);
 }
 
@@ -274,12 +286,12 @@ void dump_malloc(bool show_data, bool show_header)
 
 		LOG("%p ", current);
 		LOG("- %p ", current->next);
-		LOG(" : %d bytes", current->size);
-		LOG(" free %s", current->free ? "true" : "false");
+		LOG(" : %d bytes", CHUNK_SIZE(current->size));
+		LOG(" free %s", CHUNK_FREE(current) ? "true" : "false");
 		if (show_data)
 		{
 			LOG("\n DUMP:");
-			size_t size = current->size;
+			size_t size = CHUNK_SIZE(current->size);
 			if (show_header)
 				size += sizeof(t_chunk);
 

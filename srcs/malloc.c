@@ -132,6 +132,8 @@ void *alloc(size_t size, t_zone *zone)
 	if (!start->next)
 	{
 		start = create_chunk(start, NULL, size, zone);
+	LOG("RETURN %p\n", SKIP_HEADER_CHUNK(start));
+
 		return SKIP_HEADER_CHUNK(start);
 	}
 	while (start->free == false)
@@ -143,12 +145,24 @@ void *alloc(size_t size, t_zone *zone)
 	}
 	start = create_chunk(start, prev, size, zone);
 	start->prev = prev;
-
+	LOG("RETURN %p\n", SKIP_HEADER_CHUNK(start));
 	return SKIP_HEADER_CHUNK(start);
+}
+
+size_t align_mem(size_t size)
+{
+	unsigned int memalign = 16;
+	if (size < memalign)
+		size = memalign;
+	else if (size % memalign != 0)
+		size = size + memalign - size % memalign;
+	return size;
 }
 
 void *_malloc(size_t size)
 {
+	size = align_mem(size);
+	LOG("REQUEST %d\n", size);
 	if (!g_heap.small_zone)
 		init_zone();
 	if (size < g_heap.option.tiny_size_chunk)
@@ -189,8 +203,43 @@ void *search_ptr(void *addr, t_chunk *start)
 	return NULL;
 }
 
+void	*ft_memcpy(void *dest, const void *src, size_t n)
+{
+	unsigned char		*d;
+	const unsigned char	*s;
+	size_t				i;
+
+	if (!dest || !src)
+		return (dest);
+	d = dest;
+	s = src;
+	i = 0;
+	while (i < n)
+	{
+		d[i] = s[i];
+		i ++;
+	}
+	return (dest);
+}
+
+
+
+void *realloc(void *addr, size_t size)
+{
+	if (addr == NULL)
+		return NULL;
+	LOG("REALLOC %p\n", addr);
+	void *new_ptr = malloc(size);
+	size_t old_size = ((t_chunk *) addr)->size;
+
+	new_ptr = ft_memcpy(new_ptr, SKIP_HEADER_CHUNK(addr), old_size);
+
+	return new_ptr;
+}
+
 void free(void *addr)
 {
+	return;
 	t_chunk *start = SKIP_HEADER_ZONE(g_heap.tiny_zone);
 
 	t_chunk *found = search_ptr(addr, start);

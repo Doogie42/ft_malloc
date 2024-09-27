@@ -22,3 +22,4 @@ extern void* malloc(size_t size);
 extern void free(void *addr);
 extern void dump_malloc(bool show_data, bool show_header);
 
+void *realloc(void *addr, size_t size);

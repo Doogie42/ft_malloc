@@ -1,4 +1,3 @@
 #!/bin/sh
 
-export LD_PRELOAD=$(pwd)/libft_malloc.so
-$@
+LD_PRELOAD=$(pwd)/libft_malloc.so $0

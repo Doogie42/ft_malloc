@@ -51,13 +51,12 @@ int main(int argc, char **argv)
 	// 	printf("%zu : %x %p\n",i, test3[i][0], &test3[i][0]);
 	// }
 	// 	printf("%zu : %x %p\n",len -2, test3[len -2][0], &test3[len -2][0]);
-
-	for (size_t i = 0; i < len; i++)
+	for (int i = len - 1; i >= 0; i--)
 	{
 		free(test3[i]);
-
 	}
 	dump_malloc(false, true);
+	return 1;
 	for (size_t i = 0; i < len; i++)
 	{
 		test3[i] = malloc(50);
@@ -76,7 +75,7 @@ int main(int argc, char **argv)
 		// test3[i][2] = 42;
 		// test3[i][48] = 0;
 	}
-	dump_malloc(false, true);
+	// dump_malloc(false, true);
 
 	return 1;
 

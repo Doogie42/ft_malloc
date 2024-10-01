@@ -176,8 +176,8 @@ void defragment(t_chunk *chunk, t_zone **start_zone, size_t size_zone) {
         CHUNK_FREE(to_free->next)) {
         to_free->size += CHUNK_SIZE(to_free->next->size) + sizeof(t_chunk);
         to_free->next = to_free->next->next;
-		if (to_free->next)
-			to_free->next->prev = to_free->prev;
+        if (to_free->next)
+            to_free->next->prev = to_free->prev;
     }
     if (to_free->prev && (void *)to_free->prev + CHUNK_SIZE(to_free->prev->size) + sizeof(t_chunk) == chunk &&
         CHUNK_FREE(to_free->prev)) {
@@ -219,17 +219,6 @@ void defragment(t_chunk *chunk, t_zone **start_zone, size_t size_zone) {
     }
 }
 
-void *search_ptr(void *addr, t_chunk *start) {
-	t_chunk *tmp = start;
-	while (tmp) {
-        if (SKIP_HEADER_CHUNK(tmp) == addr)
-            return tmp;
-        tmp = tmp->next;
-    }
-
-    return NULL;
-}
-
 void *ft_memcpy(void *dest, const void *src, size_t n) {
     unsigned char *d;
     const unsigned char *s;
@@ -259,15 +248,37 @@ void *realloc(void *addr, size_t size) {
     return new_ptr;
 }
 
+void *find_good_zone(void *addr, t_zone *first_zone) {
+    while (first_zone) {
+        if (addr > (void *)first_zone && addr < (void *)first_zone->end)
+            return first_zone;
+        first_zone = first_zone->next;
+    }
+    return NULL;
+}
+
+void *search_ptr(void *addr, t_zone *start) {
+    t_zone *good_zone = find_good_zone(addr, start);
+    if (good_zone == NULL)
+        return NULL;
+
+    t_chunk *tmp = SKIP_HEADER_ZONE(good_zone);
+
+    while (tmp) {
+        if (SKIP_HEADER_CHUNK(tmp) == addr)
+            return tmp;
+        tmp = tmp->next;
+    }
+
+    return NULL;
+}
+
 void free(void *addr) {
     if (addr == NULL)
         return;
-    t_chunk *start = NULL;
 
     if (g_heap.tiny_zone) {
-        start = SKIP_HEADER_ZONE(g_heap.tiny_zone);
-
-        t_chunk *found = search_ptr(addr, start);
+        t_chunk *found = search_ptr(addr, g_heap.tiny_zone);
         if (found) {
             SET_CHUNK_FREE(found);
             defragment(found, &g_heap.tiny_zone, g_heap.option.tiny_size_zone);
@@ -275,8 +286,7 @@ void free(void *addr) {
         }
     }
     if (g_heap.small_zone) {
-        start = SKIP_HEADER_ZONE(g_heap.small_zone);
-        t_chunk *found = search_ptr(addr, start);
+        t_chunk *found = search_ptr(addr, g_heap.small_zone);
 
         if (found) {
             SET_CHUNK_FREE(found);

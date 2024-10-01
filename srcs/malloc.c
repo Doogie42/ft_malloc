@@ -19,7 +19,6 @@ typedef struct option
 
 typedef struct _zone
 {
-	void *start;
 	void *end;
 	void *next;
 } t_zone;
@@ -64,7 +63,7 @@ void clean_up(void)
 	while (g_heap.small_zone)
 	{
 		next = g_heap.small_zone->next;
-		munmap(g_heap.small_zone, g_heap.small_zone->end - g_heap.small_zone->start);
+		munmap(g_heap.small_zone, g_heap.small_zone->end - (void *)g_heap.small_zone);
 		g_heap.small_zone = next;
 		break;
 	}
@@ -72,10 +71,11 @@ void clean_up(void)
 	while (g_heap.tiny_zone)
 	{
 		next = g_heap.tiny_zone->next;
-		munmap(g_heap.tiny_zone, g_heap.small_zone->end - g_heap.small_zone->start);
+		munmap(g_heap.tiny_zone, g_heap.small_zone->end - (void *)g_heap.small_zone);
 		g_heap.tiny_zone = next;
 	}
 }
+void *make_new_free_chunk(size_t size, t_chunk *prev, t_zone *new_zone);
 
 // void init_zone(void) __attribute__((constructor));
 void init_zone(void)
@@ -93,67 +93,103 @@ void init_zone(void)
 		g_heap.option.tiny_size_zone, g_heap.option.tiny_size_chunk);
 	LOG("SMALL ZONE START %p END %p SIZE %d SIZE_CHUNK %d\n", g_heap.small_zone, g_heap.small_zone->end,
 		g_heap.option.small_size_zone, g_heap.option.small_size_chunk);
+
+	make_new_free_chunk(g_heap.option.small_size_zone, NULL, g_heap.small_zone);
+	make_new_free_chunk(g_heap.option.tiny_size_zone, NULL, g_heap.tiny_zone);
 }
 
 t_zone *create_new_zone(size_t size)
 {
+
 	t_zone *new_zone = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-	LOG("new zone created %p with size %d\n", new_zone, size);
 	new_zone->next = NULL;
 	new_zone->end = (void *)new_zone + size;
+	t_zone *current = g_heap.tiny_zone;
+	while (current->next)
+	{
+		current = current->next;
+	}
+	current->next = new_zone;
+
+	LOG("new zone created %p with size %d end is %p\n", new_zone, size, new_zone->end);
 	return new_zone;
 }
 
-t_chunk *create_chunk(t_chunk *chunk, t_chunk *prev, size_t size, t_zone *zone)
+t_chunk *split_chunk(t_chunk *free_chunk, size_t size)
 {
-	while ((void *)SKIP_HEADER_CHUNK(chunk) + CHUNK_SIZE(size) > (void *)zone->end || (void *)chunk < (void *)zone)
-	{
-		if (zone->next)
-		{
-			zone = zone->next;
-		}
-		else
-		{
-			zone->next = create_new_zone(size < g_heap.option.tiny_size_chunk ? g_heap.option.tiny_size_zone : g_heap.option.small_size_zone);
-			zone = zone->next;
-			zone->next = NULL;
-			chunk = SKIP_HEADER_CHUNK(zone);
-			prev->next = chunk;
-			break;
-		}
-	}
-	chunk->size = size;
-	SET_CHUNK_USED(chunk);
-	chunk->prev = prev;
 
-	if (!chunk->next)
+	t_chunk *new_chunk = free_chunk;
+	size_t new_free_size = free_chunk->size - size - sizeof(t_chunk);
+	t_chunk *old_next = free_chunk->next;
+	new_chunk->size = size;
+	SET_CHUNK_USED(new_chunk);
+	free_chunk = (void *)new_chunk + size + sizeof(t_chunk);
+	new_chunk->next = free_chunk;
+	(free_chunk)->prev = new_chunk;
+	(free_chunk)->size = new_free_size;
+	SET_CHUNK_FREE(free_chunk);
+	free_chunk->next = old_next;
+
+	return new_chunk;
+}
+
+void *make_new_free_chunk(size_t size, t_chunk *prev, t_zone *new_zone)
+{
+	t_chunk *new_free_chunk = SKIP_HEADER_ZONE(new_zone);
+	new_free_chunk->size = size - sizeof(t_zone) - sizeof(t_chunk);
+
+	if (prev)
 	{
-		chunk->next = (void *)chunk + CHUNK_SIZE(chunk->size) + sizeof(t_chunk);
-		SET_CHUNK_FREE(chunk->next);
+		t_chunk *old_next = prev->next;
+		new_free_chunk->prev = prev;
+		prev->next = new_free_chunk;
+		new_free_chunk->next = old_next;
 	}
-	return chunk;
+	return new_free_chunk;
 }
 
 void *alloc(size_t size, t_zone *zone)
 {
+	bool found = false;
 	t_chunk *start = SKIP_HEADER_ZONE(zone);
+
 	t_chunk *prev = NULL;
-	if (!start->next)
+
+	while (1)
 	{
-		start = create_chunk(start, NULL, size, zone);
-		return SKIP_HEADER_CHUNK(start);
-	}
-	while (CHUNK_FREE(start) == false)
-	{
+		if (CHUNK_FREE(start) && CHUNK_SIZE(start->size) >= sizeof(t_chunk) + size)
+		{
+			found = true;
+			break;
+		}
 		if (!start->next)
 			break;
 		prev = start;
 		start = start->next;
 	}
+	// Need a new zone
+	if (!found)
+	{
+		size_t zone_size = size <= g_heap.option.tiny_size_chunk ? g_heap.option.tiny_size_zone : g_heap.option.small_size_zone;
+		t_zone *new_zone = create_new_zone(zone_size);
+		if (zone_size == g_heap.option.tiny_size_chunk)
+			g_heap.tiny_zone->next = new_zone;
+		else
+			g_heap.small_zone->next = new_zone;
+		new_zone->next = NULL;
+		start = make_new_free_chunk(zone_size, start, new_zone);
+	}
+	start = split_chunk(start, size);
+	// LOG("NEXT IS %p\n", start->next->next);
+	// LOG("RETURN client %p true is %p size is %d next is %p \n",
+	// 	SKIP_HEADER_CHUNK(start), start, start->size, start->next);
+	// if (start->prev){
+	// 	LOG("prev is %p, size if %d\n", start->prev, start->prev->size);
+	// }
+	// else {
+	// 	LOG("\n");
+	// }
 
-	start = create_chunk(start, prev, size, zone);
-	start->prev = prev;
-	LOG("RETURN %p  true address is %p\n", SKIP_HEADER_CHUNK(start), start);
 	return SKIP_HEADER_CHUNK(start);
 }
 
@@ -172,7 +208,7 @@ void *_malloc(size_t size)
 	size = align_mem(size);
 	if (!g_heap.small_zone)
 		init_zone();
-	if (size < g_heap.option.tiny_size_chunk)
+	if (size <= g_heap.option.tiny_size_chunk)
 		return alloc(size, g_heap.tiny_zone);
 	if (size < g_heap.option.small_size_chunk)
 		return alloc(size, g_heap.small_zone);
@@ -185,23 +221,56 @@ void *malloc(size_t size)
 	return _malloc(size);
 }
 
-void defragment(t_chunk *chunk)
+void defragment(t_chunk *chunk, t_zone **start_zone, size_t size_zone)
 {
 	t_chunk *to_free = chunk;
-	SET_CHUNK_FREE(to_free);
-	// // Next chunk
-	// if (to_free->next && CHUNK_FREE(to_free->next->size))
-	// {
+	// We check if we are in the same zone before merging two blocks
+	if (to_free->next && (void *)to_free->next == (void *)chunk + to_free->size + sizeof(t_chunk) &&
+		CHUNK_FREE(to_free->next))
+	{
+		to_free->size += CHUNK_SIZE(to_free->next->size) + sizeof(t_chunk);
+		to_free->next = to_free->next->next;
+	}
 
-	// 	to_free->size += CHUNK_SIZE(to_free->next->size) + sizeof(t_chunk);
-	// 	to_free->next = to_free->next->next;
-	// }
-
-	if (to_free->prev && CHUNK_FREE(to_free->prev))
+	if (to_free->prev && (void *)to_free->prev + to_free->prev->size + sizeof(t_chunk) == chunk &&
+		CHUNK_FREE(to_free->prev))
 	{
 		to_free->prev->next = to_free->next;
-		to_free->next->prev = to_free->prev;
+		if (to_free->next)
+			to_free->next->prev = to_free->prev;
 		to_free->prev->size += CHUNK_SIZE(to_free->size) + sizeof(t_chunk);
+		to_free = to_free->prev;
+	}
+	SET_CHUNK_FREE(to_free);
+	// We only have one zone allcoated and it's empty => we keep it
+	if ((*start_zone)->next == NULL)
+		return;
+	// We have an empty zone to munmap
+	if (sizeof(t_chunk) + sizeof(t_zone) + to_free->size == size_zone)
+	{
+		// The chunk will be the whole zone => we need to remove it  from link list
+		t_chunk *old_prev = to_free->prev;
+		if (to_free->prev)
+			to_free->prev->next = to_free->next;
+		if (to_free->next)
+			to_free->next->prev = old_prev;
+		void *zone_to_free = (void *)to_free - sizeof(t_zone);
+
+		t_zone *current = *start_zone;
+		t_zone *prev = NULL;
+
+		while (current && current != zone_to_free)
+		{
+			prev = current;
+			current = current->next;
+		}
+		if (!prev)
+			*start_zone = (*start_zone)->next;
+		else
+			prev->next = current->next;
+
+		munmap(zone_to_free, size_zone);
+		LOG("MUMAP %p\n", zone_to_free);
 	}
 }
 
@@ -210,9 +279,7 @@ void *search_ptr(void *addr, t_chunk *start)
 	while (start)
 	{
 		if (SKIP_HEADER_CHUNK(start) == addr)
-		{
 			return start;
-		}
 		start = start->next;
 	}
 	return NULL;
@@ -252,43 +319,56 @@ void *realloc(void *addr, size_t size)
 
 void free(void *addr)
 {
-	t_chunk *start = SKIP_HEADER_ZONE(g_heap.tiny_zone);
+	// t_chunk *start = SKIP_HEADER_ZONE(g_heap.tiny_zone);
+	// t_chunk *found = search_ptr(addr, start);
+	// if (found)
+	// {
+	// 	SET_CHUNK_FREE(found);
+	// 	defragment(found, &g_heap.tiny_zone, g_heap.option.tiny_size_zone);
+	// 	return;
+	// }
 
+	t_chunk *start = SKIP_HEADER_ZONE(g_heap.small_zone);
 	t_chunk *found = search_ptr(addr, start);
-	if (!found)
+	if (found)
 	{
-		start = SKIP_HEADER_ZONE(g_heap.small_zone);
-		found = search_ptr(addr, start);
-	}
-	if (!found)
-	{
+		SET_CHUNK_FREE(found);
+		defragment(found, &g_heap.small_zone, g_heap.option.small_size_zone);
 		return;
-		ft_printf("free () : invalid pointer");
-		abort();
 	}
-	SET_CHUNK_FREE(found);
-	defragment(found);
+	ft_printf("free () : invalid pointer");
+	abort();
 }
-
+void dump_zone(bool show_data, bool show_header, t_zone *start_zone);
 void dump_malloc(bool show_data, bool show_header)
 {
-	t_chunk *current = (t_chunk *)((__uint8_t *)g_heap.tiny_zone + sizeof(t_zone));
+	// dump_zone(show_data, show_header, g_heap.tiny_zone);
+	dump_zone(show_data, show_header, g_heap.small_zone);
+}
+
+void dump_zone(bool show_data, bool show_header, t_zone *start_zone)
+{
+	t_chunk *current = (t_chunk *)((void *)start_zone + sizeof(t_zone));
 	t_chunk *data = 0;
 	while (current)
 	{
-		if (current->size == 0)
-			break;
+		// if (current->size == 0)
+		// 	break;
 
 		if (show_header)
 			data = current;
 		else
 			data = SKIP_HEADER_CHUNK(current);
 
-		LOG("%p ", current);
-		LOG("- %p ", current->next);
+		LOG("%p (%p)", current, SKIP_HEADER_CHUNK(current));
+		if (current->next != NULL)
+			LOG("- %p ", current->next);
+		else
+			LOG("- N %p ", (void *)current + current->size + sizeof(t_chunk));
+
 		LOG(" : %d bytes", CHUNK_SIZE(current->size));
 		LOG(" free %s", CHUNK_FREE(current) ? "true" : "false");
-		if (show_data)
+		if (show_data && !CHUNK_FREE(current))
 		{
 			LOG("\n DUMP:");
 			size_t size = CHUNK_SIZE(current->size);
@@ -298,6 +378,8 @@ void dump_malloc(bool show_data, bool show_header)
 			for (size_t i = 0; i < size; i++)
 			{
 				char *d = (char *)data;
+				if (i % 8 == 0 && i != 0)
+					LOG("|");
 				LOG("%x ", d[i]);
 			}
 		}

@@ -1,7 +1,6 @@
-SRCFILES=malloc.c 
+SRCFILES=malloc.c dump_malloc.c free.c
 
 SRCSPRINT=$(wildcard srcs/printf/*.c)
-# SRCSRAW=$(notdir srcs/ft_printf/ft_printf.c)
 SRCSRAW=$(notdir $(SRCSPRINT))
 SRCFILES+=$(SRCSRAW)
 OBJSRC=$(SRCFILES:.c=.o)
@@ -12,14 +11,14 @@ SRC=$(addprefix $(SRCDIR)/, $(SRCFILES))
 OBJ=$(addprefix $(OBJDIR)/, $(OBJSRC))
 
 NAME=libft_malloc.so
-FLAG=-Wall -Wextra
+FLAG=-Wall -Wextra -g
 vpath %.c srcs srcs/printf
 
 all: $(NAME)
 
 
 $(NAME): $(OBJ)
-	cc -shared $(FLAG)  $(OBJ) -o $(NAME)
+	cc -shared -fPIC $(FLAG)  $(OBJ) -o $(NAME)
 	cp $(NAME) test/
 
 obj/%.o: %.c

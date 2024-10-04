@@ -16,7 +16,7 @@ static void *ft_memset(void *s, int c, size_t n) {
 }
 
 void *calloc(size_t nmemb, size_t size) {
-	if (nmemb > size / SIZE_MAX)
+	if (nmemb > SIZE_MAX / size)
 		return NULL;
     void *ptr = malloc(nmemb * size);
 	if (!ptr)

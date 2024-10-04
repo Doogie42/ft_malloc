@@ -71,8 +71,8 @@ int main(int argc, char **argv)
 		if (ptr[idx] == NULL){
 		// printf("%d\n", i);
 
-			size_t size = 256;
-			ptr[idx] = malloc(size);
+			size_t size = rand() % 612 + 1;
+			ptr[idx] = calloc(size, 1);
 			if (!ptr[idx])
 				continue;
 			memset(ptr[idx], 42, size - 1);

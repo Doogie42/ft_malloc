@@ -85,3 +85,4 @@ typedef struct zone_info{
 
 void *malloc(size_t size);
 void dump_malloc(bool show_data, bool show_header);
+void *calloc(size_t nmemb, size_t size);

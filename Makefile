@@ -1,4 +1,4 @@
-SRCFILES=malloc.c dump_malloc.c free.c
+SRCFILES=malloc.c dump_malloc.c free.c calloc.c
 
 SRCSPRINT=$(wildcard srcs/printf/*.c)
 SRCSRAW=$(notdir $(SRCSPRINT))

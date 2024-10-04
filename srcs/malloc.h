@@ -86,3 +86,8 @@ typedef struct zone_info{
 void *malloc(size_t size);
 void dump_malloc(bool show_data, bool show_header);
 void *calloc(size_t nmemb, size_t size);
+
+
+void *find_zone_ptr(void *addr);
+void *search_ptr(void *addr, t_zone *good_zone);
+void *defragment_chunk(t_chunk *chunk);

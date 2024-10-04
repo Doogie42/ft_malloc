@@ -1,4 +1,4 @@
-SRCFILES=malloc.c dump_malloc.c free.c calloc.c
+SRCFILES=malloc.c dump_malloc.c free.c calloc.c search.c 
 
 SRCSPRINT=$(wildcard srcs/printf/*.c)
 SRCSRAW=$(notdir $(SRCSPRINT))
@@ -19,7 +19,6 @@ all: $(NAME)
 
 $(NAME): $(OBJ)
 	cc -shared -fPIC $(FLAG)  $(OBJ) -o $(NAME)
-	cp $(NAME) test/
 
 obj/%.o: %.c
 	mkdir -p obj

@@ -47,6 +47,31 @@
 
 int main(int argc, char **argv)
 {
+	char *ptr1 = malloc(50);
+	ptr1[80] = 0x42;
+	char *ptr2 = malloc(50);
+	// abc = realloc(42, 42);
+	printf("ptr1 %p\n", ptr1);
+	printf("ptr2 %p\n", ptr2);
+
+	printf("\n*********************\n");
+	// free(ptr2);
+	ptr1 = realloc(ptr1, 100);
+	// ptr2 = malloc(100);
+	ptr1[5] = 0x42;
+	// ptr2[5] = 0x42;
+
+
+	printf("\n*********************\n");
+	printf("ptr1 %p\n", ptr1);
+	printf("ptr2 %p\n", ptr2);
+	dump_malloc(false, true);
+
+	return 0;
+	
+	
+	
+	
 	if (argc == 1)
 		srand(42);
 	else
@@ -102,6 +127,6 @@ int main(int argc, char **argv)
 	}
 	
 	printf("Max alloced %zu max free %d\n", currentAlloc, nbfree);
-	dump_malloc(false, true);
+	// dump_malloc(false, true);
 
 }

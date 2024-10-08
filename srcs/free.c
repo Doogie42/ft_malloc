@@ -1,91 +1,85 @@
 #include "malloc.h"
 
 extern struct heap g_heap;
+extern pthread_mutex_t g_mutex;
 
-void *defragment_chunk(t_chunk *chunk) {
+static t_chunk *defragment(t_chunk *chunk) {
     t_chunk *next = chunk->next;
     t_chunk *prev = chunk->prev;
-    if (next && CHUNK_FREE(next)) {
+
+    if (CHUNK_FREE(next)) {
         chunk->size += CHUNK_SIZE(next->size) + sizeof(t_chunk);
-        next->next->prev = chunk;
         chunk->next = next->next;
+        next->next->prev = chunk;
+        SET_CHUNK_FREE(chunk);
     }
-    if (prev && CHUNK_FREE(prev)) {
+    if (CHUNK_FREE(prev)) {
         prev->size += CHUNK_SIZE(chunk->size) + sizeof(t_chunk);
         prev->next = chunk->next;
         chunk->next->prev = prev;
+        SET_CHUNK_FREE(prev);
         return prev;
     }
     return chunk;
 }
 
-void *unlink_zone(t_zone *zone) {
-    t_chunk *begin_guard_chunk = SKIP_HEADER_ZONE(zone);
-    t_chunk *end_guard_chunk = (void *)zone->end - GUARD_CHUNK_SIZE;
-    t_zone *previous_zone = zone->prev;
-    t_zone *next_zone = zone->next;
-    if (previous_zone) {
-        t_chunk *end_guard_chunk_prev = (void *)previous_zone->end - GUARD_CHUNK_SIZE;
-        end_guard_chunk_prev->next = end_guard_chunk->next;
+static void free_big(t_chunk *chunk) {
+    if (chunk == g_heap.big_chunk) {
+        g_heap.big_chunk = chunk->next;
+        if (g_heap.big_chunk && g_heap.big_chunk->next) {
+            g_heap.big_chunk->next->prev = g_heap.big_chunk;
+        }
+    } else {
+        chunk->prev->next = chunk->next;
+        if (chunk->next) {
+            chunk->next->prev = chunk->prev;
+        }
     }
-    if (next_zone) {
-        t_chunk *begin_guard_chunk_next = SKIP_HEADER_ZONE(next_zone);
-        begin_guard_chunk_next->prev = begin_guard_chunk->prev;
-    }
-    return zone;
+    SET_CHUNK_FREE(chunk);
+    munmap(chunk, chunk->size + sizeof(t_chunk));
+    return;
 }
 
-void remove_empty_zone(t_chunk *to_free, t_zone *chunk_zone) {
-    if ((void *)to_free->prev == SKIP_HEADER_ZONE(chunk_zone) &&
-        (void *)to_free->next + GUARD_CHUNK_SIZE == chunk_zone->end) {
-        chunk_zone = unlink_zone(chunk_zone);
-        t_zone *previous_zone = chunk_zone->prev;
-        if (chunk_zone == g_heap.tiny_zone) {
-            g_heap.tiny_zone = g_heap.tiny_zone->next;
-            if (g_heap.tiny_zone)
-                g_heap.tiny_zone->prev = NULL;
+static void remove_empty_zone(t_chunk *chunk) {
+    size_t true_size = chunk->size + sizeof(t_chunk);
+    if (true_size + 2 * GUARD_CHUNK_SIZE !=
+            g_heap.option.small_size_zone - sizeof(t_zone) &&
+        true_size + 2 * GUARD_CHUNK_SIZE !=
+            g_heap.option.tiny_size_zone - sizeof(t_zone))
+        return;
 
-            munmap(chunk_zone, chunk_zone->end - (void *)chunk_zone);
+    t_zone *empty_zone = find_zone_ptr(chunk);
 
-            return;
+    // if we only have one zone we keep it allocated
+    // if (!empty_zone->next && !empty_zone->prev) return;
 
-        } else if (chunk_zone == g_heap.small_zone) {
-            g_heap.small_zone = g_heap.small_zone->next;
-            if (g_heap.small_zone)
-                g_heap.small_zone->prev = NULL;
-
-            munmap(chunk_zone, chunk_zone->end - (void *)chunk_zone);
-
-            return;
-        }
-        if (previous_zone)
-            previous_zone->next = chunk_zone->next;
-        if (chunk_zone->next)
-            chunk_zone->next->prev = previous_zone;
-        munmap(chunk_zone, chunk_zone->end - (void *)chunk_zone);
+    if (empty_zone->next) {
+        empty_zone->next->prev = empty_zone->prev;
     }
+    if (empty_zone->prev) {
+        empty_zone->prev->next = empty_zone->next;
+    }
+    void *addr = (char *)empty_zone - sizeof(t_zone);
+    size_t size =
+        (char *)empty_zone->end - (char *)empty_zone + sizeof(t_chunk);
+    munmap(addr, size);
+}
+
+void internal_free(void *addr) {
+    if (!addr) return;
+
+    t_chunk *chunk = MEM_TO_CHUNK(addr);
+    if (CHUNK_SIZE(chunk->size) > g_heap.option.small_size_chunk) {
+        free_big(chunk);
+        return;
+    }
+    chunk = defragment(chunk);
+    SET_CHUNK_FREE(chunk);
+    remove_empty_zone(chunk);
 }
 
 void free(void *addr) {
-    if (addr == NULL)
-        return;
-    t_zone *chunk_zone = find_zone_ptr(addr);
-    if (!chunk_zone) {
-        ft_printf("free (): invalid pointer %p\n", addr);
-        return;
-    }
-    t_chunk *to_free = search_ptr(addr, chunk_zone);
-    if (to_free == NULL) {
-        ft_printf("free (): invalid pointer %p\n", addr);
-        // abort();
-        return;
-    }
-    if (CHUNK_FREE(to_free)) {
-        ft_printf("free(): Double free detected\n");
-        // abort();
-        return;
-    }
-    SET_CHUNK_FREE(to_free);
-    to_free = defragment_chunk(to_free);
-    remove_empty_zone(to_free, chunk_zone);
+    pthread_mutex_lock(&g_mutex);
+    internal_free(addr);
+    pthread_mutex_unlock(&g_mutex);
 }

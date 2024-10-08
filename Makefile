@@ -1,4 +1,4 @@
-SRCFILES=malloc.c dump_malloc.c free.c calloc.c search.c 
+SRCFILES=malloc.c dump_malloc.c search.c free.c calloc.c realloc.c zone.c
 
 SRCSPRINT=$(wildcard srcs/printf/*.c)
 SRCSRAW=$(notdir $(SRCSPRINT))
@@ -11,7 +11,7 @@ SRC=$(addprefix $(SRCDIR)/, $(SRCFILES))
 OBJ=$(addprefix $(OBJDIR)/, $(OBJSRC))
 
 NAME=libft_malloc.so
-FLAG=-Wall -Wextra -g
+FLAG=-Wall -Wextra -Wpedantic -fvisibility=hidden -g
 vpath %.c srcs srcs/printf
 
 all: $(NAME)
@@ -38,16 +38,17 @@ fclean: clean
 
 re: fclean all
 
-SRC_TEST=test1.c test0.c
+SRC_TEST_RAW=test0.c test1.c test2.c test3.c test4.c test3bis.c
+DIR_TEST=bench/test/
+SRC_TEST=$(addprefix $(DIR_TEST), $(SRC_TEST_RAW))
+
 EXEC_TEST=$(SRC_TEST:.c=)
 
+compiletest: copy $(EXEC_TEST)
 
-
-compiletest: $(EXEC_TEST)
-
-$(EXEC_TEST): %: test/%.c
-	$(CC) $(CFLAGS) -o test/$@ $<
-
-
+copy:
+	cp libft_malloc.so bench/test
+$(EXEC_TEST): %: %.c
+	cc $(CFLAGS) -o $@ $<
 
 .PHONY: all clean fclean re

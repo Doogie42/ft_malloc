@@ -1,26 +1,16 @@
 #include "malloc.h"
 
-static void *ft_memset(void *s, int c, size_t n) {
-    size_t i;
-    unsigned char *buf;
+extern pthread_mutex_t g_mutex;
 
-    if (!s)
-        return (s);
-    buf = s;
-    i = 0;
-    while (i < n) {
-        *(buf + i) = c;
-        i++;
-    }
-    return (s);
+void *_calloc(size_t nmemb, size_t size) {
+    void *ptr = internal_malloc(nmemb * size);
+    memset(ptr, 0, nmemb * size);
+    return ptr;
 }
 
 void *calloc(size_t nmemb, size_t size) {
-	if (nmemb > SIZE_MAX / size)
-		return NULL;
-    void *ptr = malloc(nmemb * size);
-	if (!ptr)
-		return ptr;
-    ft_memset(ptr, 0, nmemb * size);
-	return ptr;
+    pthread_mutex_lock(&g_mutex);
+    void *ptr = _calloc(nmemb, size);
+    pthread_mutex_unlock(&g_mutex);
+    return ptr;
 }

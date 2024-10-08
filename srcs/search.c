@@ -7,7 +7,6 @@ static t_zone *find_good_zone(void *addr, t_zone *first_zone) {
     if (!current) {
         return NULL;
     }
-
     while (current) {
         if ((char *)addr > (char *)current &&
             (char *)addr < (char *)current->end)

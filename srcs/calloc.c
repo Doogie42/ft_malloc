@@ -4,6 +4,7 @@ extern pthread_mutex_t g_mutex;
 
 void *_calloc(size_t nmemb, size_t size) {
     void *ptr = internal_malloc(nmemb * size);
+    if (!ptr) return NULL;
     memset(ptr, 0, nmemb * size);
     return ptr;
 }

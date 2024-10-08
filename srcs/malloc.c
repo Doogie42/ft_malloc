@@ -39,6 +39,7 @@ static t_chunk *big_alloc(size_t size) {
     t_chunk *new_chunk =
         mmap(NULL, size + sizeof(t_chunk), PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (!new_chunk) return NULL;
     new_chunk->next = NULL;
     new_chunk->prev = NULL;
     new_chunk->size = size;
@@ -97,9 +98,10 @@ static void *alloc(size_t size) {
     t_zone_info zone_info = get_zone_from_size(size);
     if (zone_info.type == e_big_zone) {
         return big_alloc(size);
-    if (*zone_info.zone == NULL) {
     }
+    if (*zone_info.zone == NULL) {
         t_zone *new_zone = init_zone(zone_info);
+        if (!new_zone) return NULL;
         *zone_info.zone = new_zone;
     }
 
@@ -107,10 +109,11 @@ static void *alloc(size_t size) {
         find_free_chunk(SKIP_HEADER_ZONE(*zone_info.zone), size);
     if (!free_chunk) {
         t_zone *new_zone = init_zone(zone_info);
+        if (!new_zone) return NULL;
         *zone_info.zone = link_zone(*zone_info.zone, new_zone);
         free_chunk = find_free_chunk(SKIP_HEADER_ZONE(*zone_info.zone), size);
     }
-
+    if (!free_chunk) return NULL;
     t_chunk *ret_chunk = split_free_chunk(free_chunk, size);
 
     return SKIP_HEADER_CHUNK(ret_chunk);

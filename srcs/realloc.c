@@ -20,23 +20,28 @@ void *_realloc(void *ptr, size_t size) {
         internal_free(ptr);
         return ptr;
     }
+    size = align_mem(size);
     t_chunk *chunk = MEM_TO_CHUNK(ptr);
 
-    if (chunk->size > g_heap.option.small_size_chunk) {
+    if (chunk->size > g_heap.option.small_size_chunk ||
+        size > g_heap.option.small_size_chunk) {
         return full_dealloc(chunk, size);
     }
     if (size <= CHUNK_SIZE(chunk->size)) {
         return SKIP_HEADER_CHUNK(chunk);
     }
 
-    size_t added_size = size - CHUNK_SIZE(chunk->size) + sizeof(t_chunk);
+    size_t added_size = size - CHUNK_SIZE(chunk->size) + 256;
     if (CHUNK_FREE(chunk->next) && CHUNK_SIZE(chunk->next->size) > added_size) {
         t_chunk *extra_chunk = split_free_chunk(chunk->next, added_size);
         chunk->next = extra_chunk->next;
-        extra_chunk->next->prev = chunk;
+        chunk->next->prev = chunk;
         chunk->size = (char *)chunk->next - (char *)chunk - sizeof(t_chunk);
+        memset(extra_chunk, 0, added_size + sizeof(t_chunk));
+
         SET_CHUNK_USED(chunk);
-        return SKIP_HEADER_CHUNK(chunk);
+        SET_CHUNK_USED(chunk->next);
+        return ptr;
     } else {
         return full_dealloc(chunk, size);
     }

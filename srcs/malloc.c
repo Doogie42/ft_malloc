@@ -26,7 +26,7 @@ static void first_call() {
     first = true;
 }
 
-static size_t align_mem(size_t size) {
+size_t align_mem(size_t size) {
     unsigned int memalign = 64;
     if (size < memalign)
         size = memalign;

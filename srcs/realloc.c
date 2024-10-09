@@ -3,11 +3,27 @@
 extern struct heap g_heap;
 extern pthread_mutex_t g_mutex;
 
+void *ft_memcpy(void *dest, const void *src, size_t n) {
+    unsigned char *d;
+    const unsigned char *s;
+    size_t i;
+
+    if (!dest || !src) return (dest);
+    d = dest;
+    s = src;
+    i = 0;
+    while (i < n) {
+        d[i] = s[i];
+        i++;
+    }
+    return (dest);
+}
+
 static void *full_dealloc(t_chunk *chunk, size_t size) {
     void *new_ptr = internal_malloc(size);
     if (!new_ptr) return NULL;
     size_t minimum_copy = chunk->size < size ? chunk->size : size;
-    memcpy(new_ptr, SKIP_HEADER_CHUNK(chunk), minimum_copy);
+    ft_memcpy(new_ptr, SKIP_HEADER_CHUNK(chunk), minimum_copy);
     internal_free(SKIP_HEADER_ZONE(chunk));
     return new_ptr;
 }
@@ -31,13 +47,12 @@ void *_realloc(void *ptr, size_t size) {
         return SKIP_HEADER_CHUNK(chunk);
     }
 
-    size_t added_size = size - CHUNK_SIZE(chunk->size) + 256;
+    size_t added_size = size - CHUNK_SIZE(chunk->size);
     if (CHUNK_FREE(chunk->next) && CHUNK_SIZE(chunk->next->size) > added_size) {
         t_chunk *extra_chunk = split_free_chunk(chunk->next, added_size);
         chunk->next = extra_chunk->next;
         chunk->next->prev = chunk;
         chunk->size = (char *)chunk->next - (char *)chunk - sizeof(t_chunk);
-        memset(extra_chunk, 0, added_size + sizeof(t_chunk));
 
         SET_CHUNK_USED(chunk);
         SET_CHUNK_USED(chunk->next);

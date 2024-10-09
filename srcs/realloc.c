@@ -37,8 +37,16 @@ void *_realloc(void *ptr, size_t size) {
         return ptr;
     }
     size = align_mem(size);
-    t_chunk *chunk = MEM_TO_CHUNK(ptr);
-
+#ifndef NO_SAFE_FREE
+    t_chunk *chunk = find_ptr(ptr);
+#else
+	t_chunk *chunk = MEM_TO_CHUNK(ptr);
+#endif
+	if (!chunk){
+		return NULL;
+	}
+	if (CHUNK_FREE(chunk))
+		return NULL;
     if (chunk->size > g_heap.option.small_size_chunk ||
         size > g_heap.option.small_size_chunk) {
         return full_dealloc(chunk, size);

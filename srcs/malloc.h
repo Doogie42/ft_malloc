@@ -11,6 +11,9 @@
 
 #include "ft_printf.h"
 
+
+// #define LOG(...) ft_printf(__VA_ARGS__)
+#define LOG(...) do {} while(0)
 typedef struct chunk t_chunk;
 
 struct chunk {
@@ -50,7 +53,7 @@ typedef struct zone_info {
     size_t smallest_chunk_size;
 } t_zone_info;
 
-#define GUARD_CHUNK_SIZE (256 + sizeof(t_chunk))
+#define GUARD_CHUNK_SIZE (sizeof(t_chunk))
 
 #define SKIP_HEADER_ZONE(zone) ((t_chunk *)((char *)zone + sizeof(t_zone)))
 #define SKIP_HEADER_CHUNK(chunk) ((t_chunk *)((char *)chunk + sizeof(t_chunk)))
@@ -71,6 +74,8 @@ typedef struct zone_info {
 #define SET_CHUNK_USED(x) x->size ^= 1
 #define SET_CHUNK_FREE(x) x->size &= ~1
 
+#define ALIGN_SIZE 32
+
 #define CHECK_CHUNK_NEXT_INVALID(chunk) \
     (chunk->next && chunk->next->prev != chunk)
 #define SHIFT_FORWARD_CHUNK(chunk, size) (t_chunk *)((char *)chunk + size)
@@ -79,7 +84,8 @@ typedef struct zone_info {
 #define my_export __attribute__((visibility("default")))
 
 my_export void *malloc(size_t size);
-my_export void show_alloc_mem(bool show_data, bool show_header);
+my_export void show_alloc_mem_ex(bool show_data, bool show_header);
+my_export void show_alloc_mem();
 my_export void *calloc(size_t nmemb, size_t size);
 my_export void *realloc(void *ptr, size_t size);
 my_export void free(void *ptr);

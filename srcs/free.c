@@ -68,13 +68,22 @@ static void remove_empty_zone(t_chunk *chunk) {
 void internal_free(void *addr) {
     if (!addr) return;
 
+#ifndef NO_SAFE_FREE
     t_chunk *chunk = find_ptr(addr);
-    if (!chunk) {
-        ft_printf("free(): ivalid pointer\n");
+#else
+	t_chunk *chunk = MEM_TO_CHUNK(addr);
+	if (!chunk % ALIGN_SIZE){
+        LOG("free(): invalid pointer\n");
+	}
+#endif
+
+	if (!chunk) {
+        LOG("free(): invalid pointer\n");
         return;
     }
+	
     if (CHUNK_FREE(chunk)) {
-        ft_printf("free(): double free detected\n");
+        LOG("free(): double free detected\n");
         return;
     }
     if (CHUNK_SIZE(chunk->size) > g_heap.option.small_size_chunk) {

@@ -63,11 +63,10 @@ static void dump_zone(bool show_data, bool show_header, t_zone *start_zone) {
     dump_chunk(show_data, show_header, current);
 }
 
-void show_alloc_mem(bool show_data, bool show_header) {
+void show_alloc_mem_ex(bool show_data, bool show_header) {
     ft_printf("size of tchunk %d\n", sizeof(t_chunk));
     if (g_heap.tiny_zone) {
         ft_printf("TINY ZONE\n");
-
         dump_zone(show_data, show_header, g_heap.tiny_zone);
     }
     if (g_heap.small_zone) {
@@ -78,4 +77,52 @@ void show_alloc_mem(bool show_data, bool show_header) {
         ft_printf("BIG ZONE\n");
         dump_chunk(show_data, show_header, g_heap.big_chunk);
     }
+}
+
+void show_alloc_mem() {
+    size_t allocated = 0;
+    t_zone *zone = g_heap.tiny_zone;
+
+    while (zone) {
+        ft_printf("TINY: %p\n", zone);
+        t_chunk *chunk = SKIP_HEADER_CHUNK(zone);
+        while (chunk) {
+            if (CHUNK_SIZE(chunk->size) != 0 && !CHUNK_FREE(chunk)) {
+                ft_printf("%p - %p : %d bytes\n", SKIP_HEADER_CHUNK(chunk),
+                          (char *)chunk + CHUNK_SIZE(chunk->size),
+                          CHUNK_SIZE(chunk->size));
+                allocated += CHUNK_SIZE(chunk->size);
+            }
+            chunk = chunk->next;
+        }
+        zone = zone->next;
+    }
+    zone = g_heap.small_zone;
+
+    while (zone) {
+        ft_printf("SMALL: %p\n", zone);
+        t_chunk *chunk = SKIP_HEADER_CHUNK(zone);
+        while (chunk) {
+            if (CHUNK_SIZE(chunk->size) != 0 && !CHUNK_FREE(chunk)) {
+                ft_printf("%p - %p : %d bytes\n", SKIP_HEADER_CHUNK(chunk),
+                          (char *)chunk + CHUNK_SIZE(chunk->size),
+                          CHUNK_SIZE(chunk->size));
+                allocated += CHUNK_SIZE(chunk->size);
+            }
+            chunk = chunk->next;
+        }
+        zone = zone->next;
+    }
+    t_chunk *chunk = g_heap.big_chunk;
+    while (chunk) {
+        ft_printf("LARGE : %p\n", chunk);
+        if (CHUNK_SIZE(chunk->size) != 0 && !CHUNK_FREE(chunk)) {
+            ft_printf("%p - %p : %d bytes\n", SKIP_HEADER_CHUNK(chunk),
+                      (char *)chunk + CHUNK_SIZE(chunk->size),
+                      CHUNK_SIZE(chunk->size));
+            allocated += CHUNK_SIZE(chunk->size);
+        }
+        chunk = chunk->next;
+    }
+    ft_printf("Total : %d bytes\n", allocated);
 }

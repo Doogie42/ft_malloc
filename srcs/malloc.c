@@ -8,9 +8,12 @@ static struct option init_option() {
     struct option option = {
         .tiny_size_zone = sysconf(_SC_PAGESIZE) * 4,
         .tiny_size_chunk = option.tiny_size_zone / 128,
-        .small_size_zone = sysconf(_SC_PAGESIZE) * 64,
-        .small_size_chunk = option.small_size_zone / 64,
+        .small_size_zone = sysconf(_SC_PAGESIZE) * 32,
+        .small_size_chunk = option.small_size_zone / 128,
     };
+    // ft_printf("tiny chunk %d tiny zone %d small chunk %d small zone %d\n",
+    // option.tiny_size_chunk, option.tiny_size_zone, option.small_size_chunk,
+    // option.small_size_zone);
     return option;
 }
 
@@ -27,7 +30,7 @@ static void first_call() {
 }
 
 size_t align_mem(size_t size) {
-    unsigned int memalign = 64;
+    unsigned int memalign = ALIGN_SIZE;
     if (size < memalign)
         size = memalign;
     else if (size % memalign != 0)

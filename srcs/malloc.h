@@ -93,3 +93,4 @@ t_zone *init_zone(t_zone_info zone_info);
 t_zone *link_zone(t_zone *first_zone, t_zone *new_zone);
 t_chunk *split_free_chunk(t_chunk *free_chunk, size_t size);
 size_t align_mem(size_t size);
+t_chunk *find_ptr(void *addr);

@@ -68,7 +68,15 @@ static void remove_empty_zone(t_chunk *chunk) {
 void internal_free(void *addr) {
     if (!addr) return;
 
-    t_chunk *chunk = MEM_TO_CHUNK(addr);
+    t_chunk *chunk = find_ptr(addr);
+    if (!chunk) {
+        ft_printf("free(): ivalid pointer\n");
+        return;
+    }
+    if (CHUNK_FREE(chunk)) {
+        ft_printf("free(): double free detected\n");
+        return;
+    }
     if (CHUNK_SIZE(chunk->size) > g_heap.option.small_size_chunk) {
         free_big(chunk);
         return;
@@ -82,4 +90,25 @@ void free(void *addr) {
     pthread_mutex_lock(&g_mutex);
     internal_free(addr);
     pthread_mutex_unlock(&g_mutex);
+}
+
+void delete_all_zone(t_zone *first_zone) {
+    t_zone *current = first_zone;
+    while (current) {
+        t_zone *next = current->next;
+        munmap(current, (char *)current->end - (char *)current);
+        current = next;
+    }
+}
+
+void __attribute__((destructor)) clean_up(void){
+    delete_all_zone(g_heap.tiny_zone);
+    delete_all_zone(g_heap.small_zone);
+    t_chunk *current = g_heap.big_chunk;
+    while (current) {
+        t_chunk *next = current->next;
+        munmap(current, current->size);
+        current = next;
+    }
+
 }
